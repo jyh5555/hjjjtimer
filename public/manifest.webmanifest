@@ -1,0 +1,19 @@
+{
+  "name": "HJJJ Timer Duel",
+  "short_name": "HJJJ Timer",
+  "description": "魔方双人 PK 计时器",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#123a52",
+  "theme_color": "#123a52",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">hjjjtimer2</string>
+    <string name="title_activity_main">hjjjtimer2</string>
+    <string name="package_name">com.hjjj.timer</string>
+    <string name="custom_url_scheme">com.hjjj.timer</string>
+</resources>
