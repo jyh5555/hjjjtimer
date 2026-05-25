@@ -202,6 +202,22 @@ function extend222Scramble(scramble: string): string {
   return moves.join(' ')
 }
 
+function extendBldScramble(scramble: string): string {
+  const moves = scramble.trim().split(/\s+/)
+  const axes = ['R', 'U', 'F']
+  let lastAxis = moves.length > 0 ? moves[moves.length - 1][0] : ''
+
+  for (let i = 0; i < 2; i++) {
+    const available = axes.filter((a) => a !== lastAxis)
+    const axis = randomItem(available)
+    const wideMove = axis + 'w' + randomItem(MOVE_SUFFIXES)
+    moves.push(wideMove)
+    lastAxis = axis
+  }
+
+  return moves.join(' ')
+}
+
 function fallbackCubeScramble(pool: string[], length: number): string {
   const moves: string[] = []
   let previousAxis: string | null = null
@@ -1061,6 +1077,10 @@ function App() {
 
       if (selectedEvent.eventId === '222') {
         scramble = extend222Scramble(scramble)
+      }
+
+      if (selectedEvent.eventId === '333bf') {
+        scramble = extendBldScramble(scramble)
       }
 
       if (token !== nextRoundTokenRef.current) {
