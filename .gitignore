@@ -29,3 +29,4 @@ releases/*.keystore
 *.njsproj
 *.sln
 *.sw?
+.claude/

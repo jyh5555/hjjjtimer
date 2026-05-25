@@ -176,6 +176,22 @@ function pickMove(pool: string[], previousAxis: string | null): string {
   return move + randomItem(MOVE_SUFFIXES)
 }
 
+function extend222Scramble(scramble: string): string {
+  const moves = scramble.trim().split(/\s+/)
+  if (moves.length >= 11) return scramble
+
+  const pool = ['R', 'U', 'F']
+  let last = moves.length > 0 ? moves[moves.length - 1][0] : ''
+
+  while (moves.length < 11) {
+    const face = randomItem(pool.filter((f) => f !== last))
+    moves.push(face + randomItem(MOVE_SUFFIXES))
+    last = face
+  }
+
+  return moves.join(' ')
+}
+
 function fallbackCubeScramble(pool: string[], length: number): string {
   const moves: string[] = []
   let previousAxis: string | null = null
@@ -236,7 +252,7 @@ function fallbackFTOScramble(): string {
 function fallbackScrambleForEvent(eventId: string): string {
   switch (eventId) {
     case '222':
-      return fallbackCubeScramble(['R', 'U', 'F'], 10)
+      return fallbackCubeScramble(['R', 'U', 'F'], 11)
     case '333':
     case '333oh':
     case '333bf':
@@ -1001,9 +1017,13 @@ function App() {
     try {
       await ensureScrambowLoaded()
       const scrambow = getScrambow()
-      const scramble = scrambow
+      let scramble = scrambow
         ? scrambow.setType(getScrambleType(selectedEvent.eventId)).get()[0].scramble_string.trim()
         : fallbackScrambleForEvent(selectedEvent.eventId)
+
+      if (selectedEvent.eventId === '222') {
+        scramble = extend222Scramble(scramble)
+      }
 
       if (token !== nextRoundTokenRef.current) {
         return
