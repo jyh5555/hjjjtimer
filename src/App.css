@@ -396,6 +396,24 @@
   -webkit-tap-highlight-color: transparent;
 }
 
+.drawer-dnf-button {
+  border: 0;
+  border-radius: 999px;
+  padding: 9px 12px;
+  font: inherit;
+  cursor: pointer;
+  background: rgba(239, 68, 68, 0.12);
+  color: #dc2626;
+  font-weight: 600;
+  -webkit-tap-highlight-color: transparent;
+  flex: 0 0 auto;
+}
+
+.drawer-dnf-button.is-disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
 .drawer-slider-card {
   display: grid;
   gap: 8px;

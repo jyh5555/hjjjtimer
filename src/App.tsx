@@ -36,6 +36,12 @@ type SolveHistory = {
   right: number[]
 }
 
+type LastRound = {
+  leftMs: number
+  rightMs: number
+  winner: 'left' | 'right' | 'tie'
+} | null
+
 type HoldState = {
   leftPressed: boolean
   rightPressed: boolean
@@ -110,6 +116,8 @@ const EMPTY_HOLD_STATE: HoldState = {
   rightPressed: false,
 }
 
+const EMPTY_DNF_FLAGS = { left: false, right: false }
+
 function loadInitialSelectedId(): string {
   if (typeof window === 'undefined') {
     return EVENTS[0].id
@@ -161,7 +169,9 @@ function formatTime(ms: number | null): string {
 }
 
 function formatMetric(ms: number | null): string {
-  return ms === null ? '--' : formatTime(ms)
+  if (ms === null) return '--'
+  if (ms === -1) return 'DNF'
+  return formatTime(ms)
 }
 
 function randomItem<T>(items: T[]): T {
@@ -679,11 +689,12 @@ function normalizePreviewSvg(svgElement: SVGElement, puzzleId: string) {
 }
 
 function averageTimes(times: number[]): number | null {
-  if (times.length === 0) {
+  const valid = times.filter((v) => v !== -1)
+  if (valid.length === 0) {
     return null
   }
 
-  return Math.round(times.reduce((sum, value) => sum + value, 0) / times.length)
+  return Math.round(valid.reduce((sum, value) => sum + value, 0) / valid.length)
 }
 
 function wcaAverage(times: number[]): number | null {
@@ -691,17 +702,42 @@ function wcaAverage(times: number[]): number | null {
     return null
   }
 
-  const sorted = [...times].sort((a, b) => a - b)
-  return averageTimes(sorted.slice(1, -1))
+  const dnfCount = times.filter((v) => v === -1).length
+  if (dnfCount >= 2) {
+    return -1
+  }
+
+  const sorted = [...times].sort((a, b) => {
+    if (a === -1) return 1
+    if (b === -1) return -1
+    return a - b
+  })
+
+  const trimmed = sorted.slice(1, -1)
+  if (trimmed.some((v) => v === -1)) {
+    return -1
+  }
+
+  return averageTimes(trimmed)
 }
 
 function computePlayerStats(times: number[]): PlayerStats {
+  const valid = times.filter((v) => v !== -1)
+  const recent3 = times.slice(-3)
+  const recent5 = times.slice(-5)
+  const recent12 = times.slice(-12)
+
   return {
-    recent: times.slice(-5).reverse(),
-    best: times.length > 0 ? Math.min(...times) : null,
-    mo3: times.length >= 3 ? averageTimes(times.slice(-3)) : null,
-    ao5: times.length >= 5 ? wcaAverage(times.slice(-5)) : null,
-    ao12: times.length >= 12 ? wcaAverage(times.slice(-12)) : null,
+    recent: recent5.reverse(),
+    best: valid.length > 0 ? Math.min(...valid) : null,
+    mo3:
+      recent3.length >= 3
+        ? recent3.some((v) => v === -1)
+          ? -1
+          : averageTimes(recent3)
+        : null,
+    ao5: recent5.length >= 5 ? wcaAverage(recent5) : null,
+    ao12: recent12.length >= 12 ? wcaAverage(recent12) : null,
   }
 }
 
@@ -716,7 +752,7 @@ function HistoryPanel({ history }: { history: number[] }) {
         {stats.recent.map((value, index) => (
           <div key={`${value}-${index}`} className="history-row">
             <span>{index + 1}</span>
-            <strong>{formatTime(value)}</strong>
+            <strong>{value === -1 ? 'DNF' : formatTime(value)}</strong>
           </div>
         ))}
         {Array.from({ length: placeholders }, (_, index) => (
@@ -902,6 +938,8 @@ function App() {
   const [displayNow, setDisplayNow] = useState(0)
   const [holdState, setHoldState] = useState<HoldState>(EMPTY_HOLD_STATE)
   const [settingsSide, setSettingsSide] = useState<SettingsSide>(null)
+  const [lastRound, setLastRound] = useState<LastRound>(null)
+  const [dnfFlags, setDnfFlags] = useState(EMPTY_DNF_FLAGS)
 
   const raceStartRef = useRef<number | null>(null)
   const finishedAtRef = useRef<ResultState>({ leftMs: null, rightMs: null })
@@ -1064,6 +1102,8 @@ function App() {
     setDisplayNow(startAt)
     setPhase('running')
     setSettingsSide(null)
+    setLastRound(null)
+    setDnfFlags(EMPTY_DNF_FLAGS)
     clearTouchState()
   }
 
@@ -1135,10 +1175,13 @@ function App() {
     setResults(nextResults)
 
     if (nextResults.leftMs !== null && nextResults.rightMs !== null) {
+      let winner: 'left' | 'right' | 'tie' = 'tie'
       if (nextResults.leftMs < nextResults.rightMs) {
         setScore((current) => ({ left: current.left + 1, right: current.right }))
+        winner = 'left'
       } else if (nextResults.rightMs < nextResults.leftMs) {
         setScore((current) => ({ left: current.left, right: current.right + 1 }))
+        winner = 'right'
       }
 
       setHistory((current) => ({
@@ -1146,11 +1189,50 @@ function App() {
         right: [...current.right, nextResults.rightMs as number],
       }))
 
+      setLastRound({
+        leftMs: nextResults.leftMs,
+        rightMs: nextResults.rightMs,
+        winner,
+      })
+      setDnfFlags(EMPTY_DNF_FLAGS)
+
       void generateRound()
     }
   }
 
+  function handleDnf(side: PlayerSide) {
+    if (!lastRound) {
+      return
+    }
+
+    const historyKey = side === 'left' ? 'left' : 'right'
+    const opponentKey = side === 'left' ? 'right' : 'left'
+
+    setHistory((current) => {
+      const arr = [...current[historyKey]]
+      arr[arr.length - 1] = -1
+      return { ...current, [historyKey]: arr }
+    })
+
+    if (lastRound.winner === side) {
+      setScore((current) => ({
+        ...current,
+        [historyKey]: current[historyKey] - 1,
+        [opponentKey]: current[opponentKey] + 1,
+      }))
+    }
+
+    setDnfFlags((current) => ({ ...current, [historyKey]: true }))
+    setLastRound(null)
+    setSettingsSide(null)
+  }
+
   function currentDisplay(side: PlayerSide): string {
+    const dnfKey = side === 'left' ? 'left' : 'right'
+    if (dnfFlags[dnfKey]) {
+      return 'DNF'
+    }
+
     const stored = side === 'left' ? results.leftMs : results.rightMs
     if (stored !== null) {
       return formatTime(stored)
@@ -1186,12 +1268,23 @@ function App() {
               onClick={() => {
                 setScore({ left: 0, right: 0 })
                 setHistory({ left: [], right: [] })
+                setLastRound(null)
+                setDnfFlags(EMPTY_DNF_FLAGS)
                 setSettingsSide(null)
               }}
             >
               {'\u91cd\u7f6e\u6bd4\u5206'}
             </button>
           </div>
+
+          <button
+            type="button"
+            className={`drawer-dnf-button${lastRound ? '' : ' is-disabled'}`}
+            disabled={!lastRound}
+            onClick={() => handleDnf(side === 'top' ? 'left' : 'right')}
+          >
+            {'\u8bbe\u4e3aDNF'}
+          </button>
 
           <label className="drawer-slider-card">
             <span className="drawer-slider-label">
